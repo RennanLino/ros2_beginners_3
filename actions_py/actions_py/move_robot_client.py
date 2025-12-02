@@ -1,36 +1,40 @@
 import rclpy
 from rclpy.action.client import ClientGoalHandle, GoalStatus
-from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.action import ActionClient
-from my_robot_interfaces.action import CountUntil
+from my_robot_interfaces.action import MoveRobot
+from std_msgs.msg import Empty
 
 
-class CountUntilClientNode(Node):
+class MoveRobotClientNode(Node):
     def __init__(self):
-        super().__init__("count_until_client")
-        self.count_until_client = ActionClient(
+        self.name = "move_robot_client"
+        super().__init__(self.name)
+        self.move_robot_client = ActionClient(
             self,
-            CountUntil,
-            "count_until")
-        # self.timer = self.create_timer(2.0, self.cancel_goal) # set timer to cancel goal after 2 seconds
-        self.get_logger().info("Action client has been started")
+            MoveRobot,
+            "move_robot")
+        self.cancel_subscriber = self.create_subscription(Empty, "cancel_move", self.cancel_move_callback, 10)
+        self.get_logger().info(f"{self.name} has been started")
 
-    def send_goal(self, target_number, period):
+    def send_goal(self, position, velocity):
         # Wait for the server to become available
-        self.count_until_client.wait_for_server()
+        self.move_robot_client.wait_for_server()
 
         # Create a goal to send to the action server
-        goal = CountUntil.Goal(target_number=target_number, period=period)
+        goal = MoveRobot.Goal(position=position, velocity=velocity)
 
         # Send the goal
-        future = self.count_until_client.send_goal_async(goal, feedback_callback=self.goal_feedback_callback)
+        future = self.move_robot_client.send_goal_async(goal, feedback_callback=self.goal_feedback_callback)
         future.add_done_callback(self.goal_response_callback)
 
+    def cancel_move_callback(self, msg: Empty):
+        self.cancel_goal()
+
     def cancel_goal(self):
-        self.get_logger().info("Sending a cancel request")
-        self.goal_handle.cancel_goal_async()
-        # self.timer.cancel()
+        if self.goal_handle is None:
+            self.get_logger().info("Sending a cancel request")
+            self.goal_handle.cancel_goal_async()
 
     def goal_response_callback(self, future):
         self.goal_handle: ClientGoalHandle = future.result()
@@ -50,16 +54,16 @@ class CountUntilClientNode(Node):
             self.get_logger().error("Goal aborted")
         elif status == GoalStatus.STATUS_CANCELED:
             self.get_logger().warn("Goal canceled")
-        self.get_logger().info(f"Result: {result.reached_number}")
+        self.get_logger().info(f"Result: {result.position}")
 
     def goal_feedback_callback(self, feedback_msg):
-        number = feedback_msg.feedback.current_number
-        self.get_logger().info(f"Feedback: {number}")
+        position = feedback_msg.feedback.current_position
+        self.get_logger().info(f"Feedback: {position}")
 
 def main(args=None):
     rclpy.init(args=args)
-    node = CountUntilClientNode()
-    node.send_goal(6, 1.0)
+    node = MoveRobotClientNode()
+    node.send_goal(76, 7)
     rclpy.spin(node)
     rclpy.shutdown()
 

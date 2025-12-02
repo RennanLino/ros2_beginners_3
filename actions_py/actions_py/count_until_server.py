@@ -29,7 +29,7 @@ class CountUntilServerNode(Node):
         )
         self.get_logger().info(f"{self.name} has started.")
 
-    def goal_callback(self, goal_request: ServerGoalHandle):
+    def goal_callback(self, goal_request: CountUntil.Goal):
         self.get_logger().info(f"{self.name} received a goal request.")
 
         # # Policy: refuse new goal if current is still active
